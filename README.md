@@ -9,7 +9,7 @@ manager and AUR repository.
 The `Containerfile` with the details of what is installed
 is found in `archdev-container` folder.
 
-Set the DEVUSER environment variable to match with the host machine:
+Set the `DEVUSER` environment variable to match with the host machine:
 
 ``` Dockerfile
 ENV DEVUSER <user>  # Change <user>
