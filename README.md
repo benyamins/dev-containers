@@ -6,6 +6,15 @@ container (podman for the moment) for various programming languages
 and software. Based on Arch Linux for its excellent package
 manager and AUR repository.
 
+The `Containerfile` with the details of what is installed
+is found in `archdev-container` folder.
+
+Set the DEVUSER environment variable to match with the host machine:
+
+``` Dockerfile
+ENV DEVUSER <user>  # Change <user>
+```
+
 ### Manage Container (MC)
 
 Helper script for managing the container(s):
