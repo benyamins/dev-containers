@@ -1,0 +1,86 @@
+FROM docker.io/library/archlinux:latest
+
+# Ad <user>
+ENV DEVUSER <user>
+ENV DEV_TERMINAL xterm-kitty
+
+# Add color & parallel downloads support
+RUN sed -i "s/#Color/Color/" /etc/pacman.conf
+RUN awk '1;/\[options\]/ && !x {print "ParallelDownloads = 5"; x=1}' /etc/pacman.conf > pacman.conf.tmp \
+	&& mv pacman.conf.tmp /etc/pacman.conf
+
+RUN useradd -m ${DEVUSER}
+RUN echo "${DEVUSER} ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+RUN ln -sf /usr/share/zoneinfo/America/Santiago /etc/localtime
+RUN locale-gen en_US en_US.UTF-8
+
+RUN pacman-key --init
+RUN pacman -Syu --noconfirm \
+	base-devel cmake unzip ninja tree-sitter curl bash-completion \
+	git jq rsync openssh \
+	python r xorg-font-util \
+	go rustup clang llvm gdb meson ccls gcc-fortran lua \
+	bat exa tree bubblewrap kitty hugo github-cli
+
+RUN rustup toolchain install nightly
+
+# Compile neovim
+WORKDIR /tmp
+RUN git clone --depth=1 https://github.com/neovim/neovim.git
+WORKDIR /tmp/neovim
+RUN make -j4 CMAKE_BUILD_TYPE=Release
+RUN make install
+
+
+USER ${DEVUSER}
+ENV HOME /home/${DEVUSER}
+ENV TERM ${DEV_TERMINAL}
+
+
+# >>> paru <<<
+RUN rustup default nightly
+WORKDIR ${HOME}
+RUN git clone --depth=1 https://aur.archlinux.org/paru.git
+WORKDIR ${HOME}/paru
+RUN sudo -H -u ${DEVUSER} bash -c 'makepkg -si --noconfirm'
+# tools
+RUN paru -S pandoc github-cli
+# scala
+RUN paru -S coursier
+
+# >>> asdf <<<
+RUN paru -S asdf-vm --noconfirm
+ENV SOURCE_ASDF ". /opt/asdf-vm/asdf.sh"
+ENV KERL_CONFIGURE_OPTIONS "--disable-debug --without-javac"
+RUN ${SOURCE_ASDF} && asdf plugin add erlang https://github.com/asdf-vm/asdf-erlang.git
+RUN ${SOURCE_ASDF} && asdf plugin add elixir https://github.com/asdf-vm/asdf-elixir.git
+RUN ${SOURCE_ASDF} && asdf plugin add nodejs https://github.com/asdf-vm/asdf-nodejs.git
+RUN ${SOURCE_ASDF} && asdf plugin add java https://github.com/halcyon/asdf-java.git
+RUN ${SOURCE_ASDF} && asdf plugin add clojure https://github.com/asdf-community/asdf-clojure.git
+RUN ${SOURCE_ASDF} && asdf install erlang latest
+RUN ${SOURCE_ASDF} && asdf install elixir latest
+RUN ${SOURCE_ASDF} && asdf install nodejs latest
+RUN ${SOURCE_ASDF} && asdf install java openjdk-17
+RUN ${SOURCE_ASDF} && asdf install clojure latest
+RUN ${SOURCE_ASDF} && asdf global nodejs latest
+RUN ${SOURCE_ASDF} && asdf global erlang latest
+RUN ${SOURCE_ASDF} && asdf global elixir latest
+RUN ${SOURCE_ASDF} && asdf global java openjdk-17
+RUN ${SOURCE_ASDF} && asdf global clojure latest
+
+# >>> dotnet <<<
+RUN mkdir -p $HOME/.local/src
+RUN curl -sSL https://dot.net/v1/dotnet-install.sh | bash /dev/stdin \
+	--channel 6.0.1xx --quality preview --install-dir $HOME/.local/src/dotnet
+
+# >>> dotfiles <<<
+RUN echo "source $HOME/.config/bash/bashrc" > "$HOME/.bashrc"
+RUN mkdir -p $HOME/.config/nvim
+RUN mkdir -p $HOME/.local/share/nvim
+RUN mkdir -p $HOME/.local/bin
+RUN chown -R $DEVUSER:$DEVUSER $HOME/.config
+RUN chown -R $DEVUSER:$DEVUSER $HOME/.local
+RUN mkdir -p $HOME/dev
+
+# >>> entrypoint <<<
+WORKDIR $HOME/dev
